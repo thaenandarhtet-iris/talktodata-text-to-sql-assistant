@@ -2,7 +2,7 @@ anthropic
 pandas
 python-dotenv
 streamlit
-
-# added later, once the core pipeline works:
+mysql-connector-python
 # sentence-transformers  (schema/example retrieval)
 # scikit-learn           (query-difficulty classifier)
+EOF
