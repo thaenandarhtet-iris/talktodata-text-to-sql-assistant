@@ -1,0 +1,37 @@
+flights.status_cd:
+  meaning: "Flight status code"
+  values:
+    "OT": "On time"
+    "DL": "Delayed"
+    "CN": "Cancelled"
+    "DV": "Diverted"
+
+bookings.fare_class:
+  meaning: "Booking fare class"
+  values:
+    "Y": "Economy"
+    "W": "Premium Economy"
+    "J": "Business"
+    "F": "First Class"
+
+bookings.status_cd:
+  meaning: "Booking status code"
+  values:
+    "CF": "Confirmed"
+    "CX": "Cancelled"
+    "WL": "Waitlisted"
+
+passengers.loyalty_tier:
+  meaning: "Passenger loyalty program tier"
+  values:
+    "BAS": "Basic"
+    "SLV": "Silver"
+    "GLD": "Gold"
+
+flights.delay_min:
+  meaning: "Delay in minutes; NULL or 0 means on-time"
+  note: "Use for time-based filtering and aggregations"
+
+bookings.fare_amt:
+  meaning: "Fare amount in USD; use for revenue calculations"
+  note: "DECIMAL(7,2); always compare numerically, not as string"
