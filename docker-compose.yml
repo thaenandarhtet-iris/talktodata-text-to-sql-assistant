@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: talktodata-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: talktodata
+      MYSQL_USER: talktodata
+      MYSQL_PASSWORD: talktodata123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/seed.sql:/docker-entrypoint-initdb.d/seed.sql
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  mysql_data:
