@@ -19,6 +19,49 @@ A question comes in as plain text. Claude generates SQL for it, using the databa
 - Python (pandas, python-dotenv, mysql-connector-python) for the pipeline
 - Streamlit for the interface
 
+cat >> README.md << 'EOF'
+
+## Status & Accuracy
+
+**v1 Complete:** Full text-to-SQL pipeline with measured accuracy improvements.
+
+- **Baseline Accuracy:** 58.3% (7/12 test cases)
+- **Improved Accuracy:** 75.0% (+16.7 percentage points)
+- **Key Improvement:** Prominent enum code hints in prompt
+
+See `docs/accuracy_report.txt` for detailed breakdown by category.
+
+## Architecture
+
+- **Schema Introspection:** Live queries to INFORMATION_SCHEMA (no hardcoding)
+- **Schema Hints:** schema_hints.yaml documents enum meanings and data types
+- **SQL Generation:** Claude API with dynamic schema context + self-correction loop (retries on DB error)
+- **Safety Layer:** Blocks writes (INSERT/UPDATE/DELETE/DROP/ALTER), prevents statement chaining
+- **Evaluation:** Result-set equality comparison; 12 gold test cases across 5 categories
+- **Reproducibility:** Docker Compose MySQL + seed data; one-command setup
+
+## Running the Project
+
+### 1. Start MySQL
+docker-compose up -d
+
+### 2. Run Evaluation
+pytest tests/test_eval.py -v
+
+### 3. Try the Generator
+python3 << 'PYTHON'
+from src.sql_generator import generate_sql_with_retry
+from src.schema_introspection import get_connection
+conn = get_connection()
+sql = generate_sql_with_retry("Which carrier has the most flights?", conn)
+print("Generated SQL:", sql)
+conn.close()
+PYTHON
+
+### 4. Run Full Test Suite
+pytest tests/ -v
+EOF
+
 ## Setup
 
 ### Prerequisites
