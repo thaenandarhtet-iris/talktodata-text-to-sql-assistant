@@ -1,127 +1,185 @@
-# TalkToData
+# TalkToData: English to SQL
 
 Type a question in plain English and get back a SQL query plus the answer. No SQL knowledge required.
 
-## What this is
+## What This Is
 
-TalkToData takes a question like "which customers spent the most last quarter?" and turns it into a working SQL query against a real, multi-table MySQL database. It checks the query for safety before running it, executes it, and returns a results table along with a short plain-English summary.
+TalkToData converts natural language questions into executable MySQL queries. It safely executes them, returns results as a table, and shows you the generated SQL so you understand what happened.
 
-The interesting part isn't just calling an LLM and printing what it says. It's everything around that: making sure the generated SQL is actually safe to run, handling joins and aggregations correctly, and being upfront about where the model gets things wrong.
+**Example:**
+- Question: "Which carrier had the lowest revenue per flight?"
+- Generated SQL: Multi-table JOIN with revenue calculation, CASE WHEN filtering, GROUP BY
+- Result: 6-row table with carrier codes and revenue metrics
 
-## How it works
+## How It Works
 
-A question comes in as plain text. Claude generates SQL for it, using the database schema as context. A safety layer checks the query before anything runs, no writes are ever allowed. MySQL executes the read-only query, and the results come back as a table with a short explanation.
+1. **Schema Introspection** — Queries INFORMATION_SCHEMA at runtime (works with any MySQL database)
+2. **Dynamic Prompt** — Builds context with live schema + enum meanings (no hardcoding)
+3. **SQL Generation** — Claude API generates SELECT queries with extended thinking
+4. **Safety Validation** — Blocks writes (INSERT/UPDATE/DELETE), prevents injection, validates before execution
+5. **Self-Correction** — On DB errors, captures error message, feeds back to Claude, retries once
+6. **Result Comparison** — Executes query, compares results (order-insensitive)
 
-## Tech stack
+## Accuracy & Performance
 
-- Claude API for query generation
-- MySQL for the database, currently running Chinook, a sample dataset with customers, invoices, and tracks
-- Python (pandas, python-dotenv, mysql-connector-python) for the pipeline
-- Streamlit for the interface
+- **Baseline**: 58.3% (7/12 test cases)
+- **After Optimization**: 75.0% (9/12) — +16.7 percentage points
+- **Key Improvement**: Emphasized exact enum codes in prompt (prevented "Delayed" vs "DL" confusion)
+- **Test Categories**: Lookup (100%), Filter (50%→100%), Join (50%), Aggregation (0%→50%), Date Range (50%→100%)
 
-cat >> README.md << 'EOF'
+See docs/accuracy_report.txt for full breakdown.
 
-## Status & Accuracy
+## Tech Stack
 
-**v1 Complete:** Full text-to-SQL pipeline with measured accuracy improvements.
+- Claude API (claude-sonnet-5) — SQL generation with extended thinking
+- MySQL 8.0 — Database (via Docker for reproducibility)
+- Python — anthropic, mysql-connector-python, pandas, pytest, streamlit, pyyaml
+- Streamlit — Interactive web UI
+- Docker Compose — Zero-friction setup
 
-- **Baseline Accuracy:** 58.3% (7/12 test cases)
-- **Improved Accuracy:** 75.0% (+16.7 percentage points)
-- **Key Improvement:** Prominent enum code hints in prompt
-
-See `docs/accuracy_report.txt` for detailed breakdown by category.
-
-## Architecture
-
-- **Schema Introspection:** Live queries to INFORMATION_SCHEMA (no hardcoding)
-- **Schema Hints:** schema_hints.yaml documents enum meanings and data types
-- **SQL Generation:** Claude API with dynamic schema context + self-correction loop (retries on DB error)
-- **Safety Layer:** Blocks writes (INSERT/UPDATE/DELETE/DROP/ALTER), prevents statement chaining
-- **Evaluation:** Result-set equality comparison; 12 gold test cases across 5 categories
-- **Reproducibility:** Docker Compose MySQL + seed data; one-command setup
-
-## Running the Project
-
-### 1. Start MySQL
-docker-compose up -d
-
-### 2. Run Evaluation
-pytest tests/test_eval.py -v
-
-### 3. Try the Generator
-python3 << 'PYTHON'
-from src.sql_generator import generate_sql_with_retry
-from src.schema_introspection import get_connection
-conn = get_connection()
-sql = generate_sql_with_retry("Which carrier has the most flights?", conn)
-print("Generated SQL:", sql)
-conn.close()
-PYTHON
-
-### 4. Run Full Test Suite
-pytest tests/ -v
-EOF
-
-## Setup
+## Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
 - Python 3.10+
 - Anthropic API key
 
-### Quick Start
+### Setup
 
-1. Clone the repo and install Python dependencies:
-   ```bash
+1. Install Python dependencies:
    pip install -r requirements.txt
-   ```
 
-2. Copy `.env.example` to `.env` and fill in your ANTHROPIC_API_KEY:
-   ```bash
+2. Create .env with your API key:
    cp .env.example .env
-   ```
+   # Edit .env and add your ANTHROPIC_API_KEY
 
-3. Start MySQL with Docker:
-   ```bash
-   docker compose up -d
-   ```
+3. Start MySQL:
+   docker-compose up -d
+   sleep 15
+   docker-compose ps
 
-4. Wait for MySQL to be ready (~5 seconds). Check status:
-   ```bash
-   docker compose ps
-   ```
+4. Verify connection:
+   python3 test_connection.py
 
-5. Verify the connection:
-   ```bash
-   python test_connection.py
-   ```
+Should output flight status counts from the database.
 
-You should see output: `[(0, '5'), (1, '12'), ...]` (status_cd counts).
+### Run the App
 
-### Stopping
+streamlit run app.py
 
-```bash
-docker compose down
-```
+Opens at http://localhost:8501
 
-The data persists in Docker volumes and reloads on next `up`.
+### Run Tests
 
-## Status
+touch src/__init__.py tests/__init__.py
+PYTHONPATH=. python -m pytest tests/ -v
 
-Early stage. Right now I'm setting up the database and documenting the schema. Check `docs/SCOPE.md` for what v1 will and won't handle.
+## Architecture
 
-Roadmap:
-- Load the dataset into MySQL and document the schema
-- Build and test the core text-to-SQL prompt
-- Add the safety and validation layer
-- Build the Streamlit interface
-- Test against a set of sample questions and track accuracy
-- Write up the results
+### Directory Structure
 
-## AI/ML integration (tentative)
+src/
+├── config.py                 # Centralized settings (DB, API, model)
+├── schema_introspection.py   # Live INFORMATION_SCHEMA discovery
+├── sql_generator.py          # NL→SQL with self-correction loop
+├── safety.py                 # Query validation (write-blocking, injection prevention)
+└── executor.py               # Execute queries, compare result-sets
 
-These are just the directions I'm exploring:
+tests/
+├── test_eval.py              # Evaluation harness (12 gold test cases)
+├── test_safety.py            # Safety validation (9 test cases)
+├── test_generator.py         # SQL generator tests
+├── test_executor.py          # Executor tests
+└── gold_sql.yaml             # Hand-curated questions + expected results
 
-- Embedding-based retrieval, so the app only pulls in the relevant tables and past examples for a given question instead of dumping the whole schema into every prompt
-- A small classifier trained on my own test questions to flag which ones are likely to need a join or an aggregation
-- Clustering on the questions the model gets wrong, to see if the failures follow a pattern instead of just listing them one by one
+docs/
+├── accuracy_report.txt       # Before/after accuracy metrics
+└── SCOPE.md                  # v1 boundaries
+
+schema_hints.yaml             # Enum meanings & column semantics
+docker-compose.yml            # MySQL 8.0 container
+.env.example                  # Credentials template
+
+## Features
+
+✅ Dynamic Schema — Live discovery via INFORMATION_SCHEMA (works with any MySQL DB)
+✅ Safety-First — Blocks INSERT/UPDATE/DELETE, prevents injection, validates all queries
+✅ Self-Correction — Captures DB errors, retries with error context
+✅ Result Comparison — Order-insensitive equality (semantic correctness)
+✅ Measured Accuracy — 12 gold test cases, tracked before/after optimization
+✅ Production Ready — Docker + environment config, no secrets in code
+✅ Extended Thinking — Handles Claude's reasoning blocks correctly
+
+## Testing & Evaluation
+
+### Gold Test Cases (12 total)
+
+Lookup (4): COUNT(*), SELECT with ORDER BY, listing carriers/passengers/bookings
+Filter (2): WHERE with status codes, flights by carrier
+Join (2): Multi-table joins (flights+bookings+passengers), complex logic
+Aggregation (2): GROUP BY with SUM/AVG, revenue per flight calculation
+Date Range (2): YEAR/MONTH filtering, MAX datetime
+
+### Running Evaluation
+
+PYTHONPATH=. python -m pytest tests/test_eval.py -v
+
+### Safety Test Coverage
+
+9 test cases for safety layer:
+- Simple SELECT ✓
+- Joins ✓
+- Aggregations ✓
+- INSERT blocked ✓
+- UPDATE blocked ✓
+- DELETE blocked ✓
+- DROP blocked ✓
+- ALTER blocked ✓
+- SQL injection (semicolon chaining) blocked ✓
+
+## Example Queries
+
+"How many flights are there?"
+→ SELECT COUNT(*) as cnt FROM flights
+
+"Which carrier has the most flights?"
+→ SELECT c.carrier_name, COUNT(f.flight_id) as flight_count FROM carriers c LEFT JOIN flights f ON c.carrier_cd = f.carrier_cd GROUP BY c.carrier_cd, c.carrier_name ORDER BY flight_count DESC LIMIT 1
+
+"What is the average delay per carrier?"
+→ SELECT c.carrier_name, AVG(f.delay_min) as avg_delay FROM carriers c LEFT JOIN flights f ON c.carrier_cd = f.carrier_cd GROUP BY c.carrier_cd, c.carrier_name ORDER BY avg_delay DESC
+
+"How much revenue did each loyalty tier generate?"
+→ SELECT p.loyalty_tier, SUM(b.fare_amt) as revenue FROM passengers p LEFT JOIN bookings b ON p.pax_id = b.pax_id WHERE b.status_cd = 'CF' GROUP BY p.loyalty_tier ORDER BY revenue DESC
+
+## Future Work
+
+- Multi-Database Support: Postgres, SQLite connectors (currently MySQL-only)
+- Embedding-Based Retrieval: Few-shot examples + schema subset selection for large databases
+- Multi-Turn Conversation: Follow-up questions on previous results
+- Query Optimization: Suggest indexes, rewrite inefficient queries
+
+## Troubleshooting
+
+Port 3306 in use?
+   docker-compose down
+   docker volume prune -f
+   docker-compose up -d
+
+Or change port in docker-compose.yml (3306→3307) and update .env
+
+MySQL connection denied?
+- Verify .env has correct credentials
+- Check Docker container is healthy: docker-compose ps
+- Wait 30 seconds after startup (MySQL initializes slowly)
+
+Python import errors?
+   touch src/__init__.py tests/__init__.py
+   PYTHONPATH=. python -m pytest tests/ -v
+
+## License
+
+MIT
+
+## Author
+
+Built as a portfolio project to demonstrate NL→SQL generation, LLM integration, prompt engineering, and production-grade safety/testing practices.
