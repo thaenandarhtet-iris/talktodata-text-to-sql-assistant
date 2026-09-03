@@ -1,0 +1,109 @@
+test_cases:
+  - id: lookup_01
+    category: lookup
+    question: "How many flights are in the database?"
+    gold_sql: "SELECT COUNT(*) as cnt FROM flights"
+    expected_result:
+      - {cnt: 5000}
+
+  - id: lookup_02
+    category: lookup
+    question: "List all carrier names"
+    gold_sql: "SELECT carrier_name FROM carriers ORDER BY carrier_name"
+    expected_result:
+      - {carrier_name: "AeroLoop"}
+      - {carrier_name: "Horizon Skyways"}
+      - {carrier_name: "Meridian Air"}
+      - {carrier_name: "Northfield Air"}
+      - {carrier_name: "Pacific Wingline"}
+      - {carrier_name: "Skyline Express"}
+
+  - id: filter_01
+    category: filter
+    question: "How many flights were delayed?"
+    gold_sql: "SELECT COUNT(*) as cnt FROM flights WHERE status_cd = 'DL'"
+    expected_result:
+      - {cnt: 809}
+
+  - id: filter_02
+    category: filter
+    question: "Which flights from HZ carrier?"
+    gold_sql: "SELECT flight_num FROM flights WHERE carrier_cd = 'HZ' LIMIT 10"
+    expected_result:
+      - {flight_num: "HZ1612"}
+      - {flight_num: "HZ2081"}
+      - {flight_num: "HZ2060"}
+      - {flight_num: "HZ1744"}
+      - {flight_num: "HZ2039"}
+      - {flight_num: "HZ2400"}
+      - {flight_num: "HZ397"}
+      - {flight_num: "HZ262"}
+      - {flight_num: "HZ1167"}
+      - {flight_num: "HZ175"}
+
+  - id: join_01
+    category: join
+    question: "Which carrier operates the most flights?"
+    gold_sql: "SELECT c.carrier_name, COUNT(f.flight_id) as flight_count FROM carriers c LEFT JOIN flights f ON c.carrier_cd = f.carrier_cd GROUP BY c.carrier_cd, c.carrier_name ORDER BY flight_count DESC LIMIT 1"
+    expected_result:
+      - {carrier_name: "Meridian Air", flight_count: 705}
+
+  - id: join_02
+    category: join
+    question: "List passengers and their booked flights"
+    gold_sql: "SELECT p.full_name, f.flight_num FROM passengers p JOIN bookings b ON p.pax_id = b.pax_id JOIN flights f ON b.flight_id = f.flight_id LIMIT 5"
+    expected_result:
+      - {full_name: "Jeffrey Mcdaniel", flight_num: "PW279"}
+      - {full_name: "Jeffrey Mcdaniel", flight_num: "PW903"}
+      - {full_name: "Jeffrey Mcdaniel", flight_num: "NF1041"}
+      - {full_name: "Jeffrey Mcdaniel", flight_num: "SX1436"}
+      - {full_name: "Jeffrey Mcdaniel", flight_num: "MD891"}
+
+  - id: agg_01
+    category: aggregation
+    question: "What is the average delay per carrier?"
+    gold_sql: "SELECT c.carrier_name, AVG(f.delay_min) as avg_delay FROM carriers c LEFT JOIN flights f ON c.carrier_cd = f.carrier_cd GROUP BY c.carrier_cd, c.carrier_name ORDER BY avg_delay DESC"
+    expected_result:
+      - {carrier_name: "Skyline Express", avg_delay: 23.4856}
+      - {carrier_name: "Meridian Air", avg_delay: 21.4539}
+      - {carrier_name: "AeroLoop", avg_delay: 20.5592}
+      - {carrier_name: "Horizon Skyways", avg_delay: 19.9193}
+      - {carrier_name: "Northfield Air", avg_delay: 17.4297}
+      - {carrier_name: "Pacific Wingline", avg_delay: 16.7791}
+
+  - id: agg_02
+    category: aggregation
+    question: "How much revenue did each loyalty tier generate?"
+    gold_sql: "SELECT p.loyalty_tier, SUM(b.fare_amt) as revenue FROM passengers p LEFT JOIN bookings b ON p.pax_id = b.pax_id WHERE b.status_cd = 'CF' GROUP BY p.loyalty_tier ORDER BY revenue DESC"
+    expected_result:
+      - {loyalty_tier: "BAS", revenue: 1397196.26}
+      - {loyalty_tier: "SLV", revenue: 1243280.47}
+      - {loyalty_tier: "GLD", revenue: 832060.38}
+
+  - id: date_01
+    category: date_range
+    question: "How many flights were scheduled in January 2024?"
+    gold_sql: "SELECT COUNT(*) as cnt FROM flights WHERE YEAR(sched_dep_dt) = 2024 AND MONTH(sched_dep_dt) = 1"
+    expected_result:
+      - {cnt: 0}
+
+  - id: date_02
+    category: date_range
+    question: "What is the latest flight scheduled?"
+    gold_sql: "SELECT MAX(sched_dep_dt) as latest FROM flights"
+    expected_result:
+      - {latest: "2026-09-26 03:13:02"}
+
+  - id: lookup_03
+    category: lookup
+    question: "How many passengers are in the database?"
+    gold_sql: "SELECT COUNT(*) as cnt FROM passengers"
+    expected_result:
+      - {cnt: 2500}
+
+  - id: lookup_04
+    category: lookup
+    question: "How many bookings exist?"
+    gold_sql: "SELECT COUNT(*) as cnt FROM bookings"
+    expected_result:
+      - {cnt: 11583}
