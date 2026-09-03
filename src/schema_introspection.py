@@ -23,7 +23,11 @@ def introspect_schema(conn) -> str:
             line = f"    {col_name} {col_type}"
             if key: line += f" {key}"
             line += f" {nullable}"
-            if col_name in fk_map: line += f", references {fk_map[col_name]["REFERENCED_TABLE_NAME"]}({fk_map[col_name]["REFERENCED_COLUMN_NAME"]})"
+            if col_name in fk_map:
+                fk = fk_map[col_name]
+                ref_table = fk['REFERENCED_TABLE_NAME']
+                ref_col = fk['REFERENCED_COLUMN_NAME']
+                line += f", references {ref_table}({ref_col})"
             schema_lines.append(line + ",")
         schema_lines[-1] = schema_lines[-1].rstrip(",")
         schema_lines.append(")")
