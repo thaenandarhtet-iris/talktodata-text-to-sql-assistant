@@ -3,6 +3,5 @@ pandas
 python-dotenv
 streamlit
 mysql-connector-python
-# sentence-transformers  (schema/example retrieval)
-# scikit-learn           (query-difficulty classifier)
-EOF
+pyyaml
+pytest

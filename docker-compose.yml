@@ -10,7 +10,7 @@ services:
       MYSQL_USER: talktodata
       MYSQL_PASSWORD: talktodata123
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - ./data/seed.sql:/docker-entrypoint-initdb.d/seed.sql
       - mysql_data:/var/lib/mysql

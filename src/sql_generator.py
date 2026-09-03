@@ -33,18 +33,38 @@ Rules:
 - Ensure all table names and column names match the schema exactly.
 """
 
+def extract_sql_from_response(message) -> str:
+    """Extract SQL text from Claude response, handling ThinkingBlocks."""
+    for block in message.content:
+        if hasattr(block, 'text'):
+            sql = block.text.strip()
+            if sql.startswith("```"):
+                sql = sql.strip("`")
+                if sql.startswith("sql"):
+                    sql = sql[3:].strip()
+            return sql
+    raise ValueError("No text content found in response")
+
+def generate_sql_once(question: str, schema_text: str, hints: dict, previous_error: str = None) -> str:
+    """Generate SQL once. Returns raw SQL string."""
 def generate_sql_once(question: str, schema_text: str, hints: dict, previous_error: str = None) -> str:
     system_prompt = build_system_prompt(schema_text, hints)
     user_message = question
     if previous_error:
         user_message += f"\n\n[Previous attempt failed with DB error: {previous_error}. Please fix and try again.]"
+    
     message = client.messages.create(model=MODEL, max_tokens=MAX_TOKENS, system=system_prompt, messages=[{"role": "user", "content": user_message}])
-    sql = message.content[0].text.strip()
+    
+    sql = ""
+    for block in message.content:
+        if hasattr(block, 'text'):
+            sql = block.text.strip()
+            break
+    
     if sql.startswith("```"):
-        sql = sql.strip("`")
-        if sql.startswith("sql"):
-            sql = sql[3:]
-    return sql.strip()
+        sql = sql.strip("`").lstrip("sql").strip()
+    
+    return sql
 
 def generate_sql_with_retry(question: str, conn, max_retries: int = 1) -> str:
     from src.schema_introspection import introspect_schema, load_hints
@@ -60,7 +80,7 @@ def generate_sql_with_retry(question: str, conn, max_retries: int = 1) -> str:
         is_safe, reason = validate_sql(sql)
         if not is_safe:
             if attempt < max_retries:
-                previous_error = f"Safety check: {reason}"
+                previous_error = f"Safety: {reason}"
                 continue
             return sql
         success, result = execute_sql(sql, conn)
