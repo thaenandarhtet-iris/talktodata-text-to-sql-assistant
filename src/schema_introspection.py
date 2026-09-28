@@ -1,8 +1,18 @@
+from pathlib import Path
+
 import mysql.connector
-from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+import yaml
+
+from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, QUERY_TIMEOUT_MS
+
+HINTS_PATH = Path(__file__).resolve().parent.parent / "schema_hints.yaml"
 
 def get_connection():
-    return mysql.connector.connect(host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
+    conn = mysql.connector.connect(host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SET SESSION MAX_EXECUTION_TIME = %s", (QUERY_TIMEOUT_MS,))
+    cursor.close()
+    return conn
 
 def introspect_schema(conn) -> str:
     cursor = conn.cursor(dictionary=True)
@@ -36,6 +46,5 @@ def introspect_schema(conn) -> str:
     return "\n".join(schema_lines)
 
 def load_hints() -> dict:
-    import yaml
-    with open("schema_hints.yaml", "r") as f:
+    with open(HINTS_PATH, "r") as f:
         return yaml.safe_load(f) or {}

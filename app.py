@@ -5,6 +5,8 @@ from src.safety import validate_sql
 from src.executor import execute_sql
 import pandas as pd
 
+MAX_ROWS = 1000
+
 st.set_page_config(page_title="TalkToData", layout="wide")
 st.title("TalkToData: English to SQL")
 
@@ -36,7 +38,7 @@ if question:
         st.error(f"Safety check failed: {reason}")
     else:
         with st.spinner("Executing..."):
-            success, result = execute_sql(sql, conn)
+            success, result = execute_sql(sql, conn, max_rows=MAX_ROWS)
         
         if not success:
             st.error(f"Query failed: {result}")
@@ -45,6 +47,8 @@ if question:
             if result:
                 df = pd.DataFrame(result)
                 st.dataframe(df, use_container_width=True)
+                if len(result) == MAX_ROWS:
+                    st.caption(f"Showing the first {MAX_ROWS} rows.")
             else:
                 st.info("Query returned no results.")
 

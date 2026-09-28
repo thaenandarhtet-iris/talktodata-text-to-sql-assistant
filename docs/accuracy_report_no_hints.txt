@@ -1,0 +1,28 @@
+ACCURACY REPORT: TalkToData NL->SQL
+Generated 2026-09-28 with `python -m src.evaluation`
+Model: claude-sonnet-5
+Schema hints: off (ablation)
+Metric: execution accuracy on one attempt, no retry (row order, column names and extra columns ignored; numbers to 2 dp)
+
+Overall: 84.0% (21/25)
+
+By category:
+- lookup: 5/5
+- filter: 3/5
+- join: 4/5
+- aggregation: 4/5
+- date_range: 5/5
+
+Failures:
+- [filter_02] List the flight numbers of all cancelled HZ flights.
+    Result mismatch
+    SQL: SELECT flight_num FROM flights WHERE carrier_cd = 'HZ' AND status_cd = 'CX'
+- [filter_05] How many business class bookings are waitlisted?
+    Result mismatch
+    SQL: SELECT COUNT(*) FROM bookings WHERE fare_class = 'B' AND status_cd = 'WL'
+- [join_04] What is the total revenue from confirmed bookings on flights operated by Pacific Wingline?
+    Result mismatch
+    SQL: SELECT SUM(b.fare_amt) AS total_revenue FROM bookings b JOIN flights f ON b.flight_id = f.flight_id JOIN carriers c ON f.carrier_cd = c.carrier_cd WHERE c.carrier_name = 'Pacific Wingline' AND b.status_cd = 'CO'
+- [agg_02] How much revenue did each loyalty tier generate from confirmed bookings?
+    Result mismatch
+    SQL: SELECT p.loyalty_tier, SUM(b.fare_amt) AS total_revenue FROM bookings b JOIN passengers p ON b.pax_id = p.pax_id WHERE b.status_cd = 'CO' GROUP BY p.loyalty_tier

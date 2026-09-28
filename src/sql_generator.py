@@ -1,8 +1,14 @@
-import os
+from functools import cache
+
 from anthropic import Anthropic
+
 from src.config import MODEL, MAX_TOKENS, ANTHROPIC_API_KEY
 
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+@cache
+def get_client() -> Anthropic:
+    return Anthropic(api_key=ANTHROPIC_API_KEY)
+
 
 def build_system_prompt(schema_text: str, hints: dict) -> str:
     hints_text = ""
@@ -18,7 +24,7 @@ def build_system_prompt(schema_text: str, hints: dict) -> str:
                     hints_text += f"    {code} = {desc}\n"
             if "note" in metadata:
                 hints_text += f"  Note: {metadata['note']}\n"
-    
+
     return f"""You are a MySQL expert. Given a question in plain English and a database schema, write a single MySQL SELECT query that answers it.
 
 Database schema:
@@ -31,63 +37,54 @@ Rules:
 - Use the coded column values exactly as they appear in the schema metadata, for example status_cd = 'DL', do not spell them out.
 - If the question is ambiguous, make the most reasonable assumption and answer it, don't ask a clarifying question back.
 - Ensure all table names and column names match the schema exactly.
+- When the answer identifies an entity (a carrier, airport, passenger...), return its human-readable name column (e.g. carrier_name), joining to its table if needed, rather than only its code or ID.
 """
 
-def extract_sql_from_response(message) -> str:
-    """Extract SQL text from Claude response, handling ThinkingBlocks."""
-    for block in message.content:
-        if hasattr(block, 'text'):
-            sql = block.text.strip()
-            if sql.startswith("```"):
-                sql = sql.strip("`")
-                if sql.startswith("sql"):
-                    sql = sql[3:].strip()
-            return sql
-    raise ValueError("No text content found in response")
 
-def generate_sql_once(question: str, schema_text: str, hints: dict, previous_error: str = None) -> str:
+def extract_sql(text: str) -> str:
+    """Strip an optional ```sql ... ``` fence from the model's reply."""
+    sql = text.strip()
+    if sql.startswith("```"):
+        sql = sql.strip("`").strip()
+        if sql[:3].lower() == "sql":
+            sql = sql[3:]
+    return sql.strip()
+
+
+def generate_sql_once(question: str, schema_text: str, hints: dict, previous_error: str | None = None) -> str:
     """Generate SQL once. Returns raw SQL string."""
-def generate_sql_once(question: str, schema_text: str, hints: dict, previous_error: str = None) -> str:
     system_prompt = build_system_prompt(schema_text, hints)
     user_message = question
     if previous_error:
         user_message += f"\n\n[Previous attempt failed with DB error: {previous_error}. Please fix and try again.]"
-    
-    message = client.messages.create(model=MODEL, max_tokens=MAX_TOKENS, system=system_prompt, messages=[{"role": "user", "content": user_message}])
-    
-    sql = ""
-    for block in message.content:
-        if hasattr(block, 'text'):
-            sql = block.text.strip()
-            break
-    
-    if sql.startswith("```"):
-        sql = sql.strip("`").lstrip("sql").strip()
-    
-    return sql
+
+    message = get_client().messages.create(
+        model=MODEL,
+        max_tokens=MAX_TOKENS,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    text = next((block.text for block in message.content if block.type == "text"), "")
+    return extract_sql(text)
+
 
 def generate_sql_with_retry(question: str, conn, max_retries: int = 1) -> str:
     from src.schema_introspection import introspect_schema, load_hints
     from src.safety import validate_sql
     from src.executor import execute_sql
-    
+
     schema_text = introspect_schema(conn)
     hints = load_hints()
     previous_error = None
-    
+
     for attempt in range(max_retries + 1):
         sql = generate_sql_once(question, schema_text, hints, previous_error)
         is_safe, reason = validate_sql(sql)
-        if not is_safe:
-            if attempt < max_retries:
-                previous_error = f"Safety: {reason}"
-                continue
-            return sql
-        success, result = execute_sql(sql, conn)
-        if success:
-            return sql
-        if attempt < max_retries:
+        if is_safe:
+            success, result = execute_sql(sql, conn)
+            if success:
+                return sql
             previous_error = result
         else:
-            return sql
+            previous_error = f"Safety: {reason}"
     return sql

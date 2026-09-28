@@ -10,7 +10,8 @@ services:
     ports:
       - "3307:3306"
     volumes:
-      - ./data/seed.sql:/docker-entrypoint-initdb.d/seed.sql
+      - ./data/seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+      - ./data/readonly_user.sql:/docker-entrypoint-initdb.d/02_readonly_user.sql
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
