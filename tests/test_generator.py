@@ -1,6 +1,6 @@
 import pytest
 
-from src.sql_generator import extract_sql, generate_sql_with_retry
+from src.sql_generator import build_explain_message, explain_answer, extract_sql, generate_sql_with_retry
 
 
 class TestExtractSql:
@@ -35,3 +35,22 @@ class TestGenerator:
         sql = generate_sql_with_retry(question, db_conn)
         assert "SELECT" in sql.upper()
         assert ("JOIN" in sql.upper() or "flights" in sql.lower())
+
+
+class TestExplainMessage:
+    def test_includes_question_sql_and_rows(self):
+        msg = build_explain_message("How many?", "SELECT 1", [{"cnt": 4000}])
+        assert "How many?" in msg and "SELECT 1" in msg and "cnt=4000" in msg
+
+    def test_truncates_long_results(self):
+        rows = [{"n": i} for i in range(50)]
+        msg = build_explain_message("q", "s", rows, max_rows=20)
+        assert "50 rows, first 20 shown" in msg
+        assert "n=19" in msg and "n=20" not in msg
+
+
+@pytest.mark.usefixtures("api_key")
+class TestExplainAnswer:
+    def test_answer_uses_the_result(self):
+        answer = explain_answer("How many flights were delayed?", "SELECT COUNT(*) AS cnt FROM flights WHERE status_cd = 'DL'", [{"cnt": 809}])
+        assert "809" in answer

@@ -1,6 +1,6 @@
 import streamlit as st
-from src.schema_introspection import get_connection, introspect_schema, load_hints
-from src.sql_generator import generate_sql_with_retry
+from src.schema_introspection import get_connection, introspect_schema
+from src.sql_generator import explain_answer, generate_sql_with_retry
 from src.safety import validate_sql
 from src.executor import execute_sql
 import pandas as pd
@@ -24,22 +24,33 @@ with st.sidebar:
         schema_text = introspect_schema(conn)
         st.code(schema_text, language="sql")
 
-question = st.text_input("Ask your question:", placeholder="e.g., Which carrier has the most flights?")
+question = st.text_input(
+    "Ask your question:",
+    value=st.query_params.get("q", ""),
+    placeholder="e.g., Which carrier has the most flights?",
+)
 
 if question:
+    st.query_params["q"] = question
     with st.spinner("Generating SQL..."):
         sql = generate_sql_with_retry(question, conn)
-    
-    st.subheader("Generated SQL")
-    st.code(sql, language="sql")
-    
+
     is_safe, reason = validate_sql(sql)
     if not is_safe:
+        st.subheader("Generated SQL")
+        st.code(sql, language="sql")
         st.error(f"Safety check failed: {reason}")
     else:
         with st.spinner("Executing..."):
             success, result = execute_sql(sql, conn, max_rows=MAX_ROWS)
-        
+
+        if success:
+            with st.spinner("Summarising..."):
+                st.success(explain_answer(question, sql, result))
+
+        st.subheader("Generated SQL")
+        st.code(sql, language="sql")
+
         if not success:
             st.error(f"Query failed: {result}")
         else:

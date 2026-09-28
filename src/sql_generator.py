@@ -68,6 +68,34 @@ def generate_sql_once(question: str, schema_text: str, hints: dict, previous_err
     return extract_sql(text)
 
 
+EXPLAIN_SYSTEM_PROMPT = """You answer a user's question about an airline database in plain English, using only the query result you are given.
+
+Rules:
+- One or two sentences, no SQL, no markdown.
+- Use the numbers exactly as they appear in the result; round long decimals sensibly.
+- Translate codes into words (e.g. CN = cancelled, CF = confirmed, J = business class).
+- If the result is empty, say that nothing matched.
+- If only some rows are shown, describe the pattern rather than listing every row."""
+
+
+def build_explain_message(question: str, sql: str, rows: list[dict], max_rows: int = 20) -> str:
+    shown = rows[:max_rows]
+    lines = [f"Question: {question}", f"SQL: {sql}", f"Result ({len(rows)} rows" + (f", first {max_rows} shown" if len(rows) > max_rows else "") + "):"]
+    lines += [", ".join(f"{k}={v}" for k, v in row.items()) for row in shown]
+    return "\n".join(lines)
+
+
+def explain_answer(question: str, sql: str, rows: list[dict]) -> str:
+    """Summarise a query result as a short plain-English answer."""
+    message = get_client().messages.create(
+        model=MODEL,
+        max_tokens=300,
+        system=EXPLAIN_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": build_explain_message(question, sql, rows)}],
+    )
+    return next((block.text for block in message.content if block.type == "text"), "").strip()
+
+
 def generate_sql_with_retry(question: str, conn, max_retries: int = 1) -> str:
     from src.schema_introspection import introspect_schema, load_hints
     from src.safety import validate_sql

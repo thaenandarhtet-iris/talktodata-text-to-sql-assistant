@@ -5,6 +5,8 @@
 
 Type a question in plain English and get back a SQL query plus the answer. TalkToData uses Claude to turn the question into a MySQL `SELECT`, checks that the query is read-only, runs it, and shows both the SQL and the result table in a Streamlit app.
 
+![TalkToData answering a question](docs/screenshot.png)
+
 The sample database is a fictional airline with 6 carriers, 20 airports, 50 aircraft, 4,000 flights, 2,500 passengers and 11,583 bookings.
 
 ## How it works
@@ -15,6 +17,9 @@ The sample database is a fictional airline with 6 carriers, 20 airports, 50 airc
 4. **Safety check:** `src/safety.py` rejects anything that is not a single `SELECT` (see [Safety](#safety)).
 5. **Self-correction:** if the query fails the safety check or MySQL returns an error, the error is sent back to Claude for one retry.
 6. **Execution:** runs as a read-only database user with a 5-second timeout and shows up to 1,000 rows.
+7. **Plain-English answer:** Claude turns the result into a one- or two-sentence answer (codes translated into words) shown above the SQL.
+
+Questions can be shared as links: `http://localhost:8501/?q=How many flights were delayed?`
 
 ## Accuracy
 
@@ -87,7 +92,7 @@ app.py                     Streamlit UI
 src/
   config.py                Settings from .env (DB, model, timeout)
   schema_introspection.py  DB connection and live schema discovery
-  sql_generator.py         Prompt building, Claude call, retry loop
+  sql_generator.py         Prompt building, SQL generation, retry loop, answer summary
   safety.py                Read-only query validation
   executor.py              Query execution and result comparison
   evaluation.py            Accuracy evaluation against the gold set
@@ -97,7 +102,7 @@ data/
   seed.sql                 Schema and sample data
   readonly_user.sql        SELECT-only app user
 schema_hints.yaml          Meanings of coded columns
-docs/                      Accuracy report and scope
+docs/                      Accuracy reports, scope and screenshot
 ```
 
 ## Example
